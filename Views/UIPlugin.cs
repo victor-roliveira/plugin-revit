@@ -15,32 +15,32 @@ namespace primeiro_plugin2
 
             RibbonPanel panel = application.CreateRibbonPanel(tabName, "Ferramentas");
 
-            // === Botão 1 (existente) ===
-            PushButtonData btn1Data = new PushButtonData(
-                "Btn1",
-                "Selecionar Elemento",
-                Assembly.GetExecutingAssembly().Location,
-                typeof(SelectionCommand).FullName
-            );
-            panel.AddItem(btn1Data);
+            //// === Botão 1 (existente) ===
+            //PushButtonData btn1Data = new PushButtonData(
+            //    "Btn1",
+            //    "Selecionar Elemento",
+            //    Assembly.GetExecutingAssembly().Location,
+            //    typeof(SelectionCommand).FullName
+            //);
+            //panel.AddItem(btn1Data);
 
-            // === Botão 2 (novo) ===
-            PushButtonData btn2Data = new PushButtonData(
-                "Btn2",
-                "Contar Paredes",
-                Assembly.GetExecutingAssembly().Location,
-                typeof(CountWallsCommand).FullName
-            );
-            panel.AddItem(btn2Data);
+            //// === Botão 2 (novo) ===
+            //PushButtonData btn2Data = new PushButtonData(
+            //    "Btn2",
+            //    "Contar Paredes",
+            //    Assembly.GetExecutingAssembly().Location,
+            //    typeof(CountWallsCommand).FullName
+            //);
+            //panel.AddItem(btn2Data);
 
-            // === Botão 3 (novo) ===
-            PushButtonData btn3Data = new PushButtonData(
-                "Btn3",
-                "Inverter Luvas",
-                Assembly.GetExecutingAssembly().Location,
-                typeof(ReverseGlovesCommand).FullName
-            );
-            panel.AddItem(btn3Data);
+            //// === Botão 3 (novo) ===
+            //PushButtonData btn3Data = new PushButtonData(
+            //    "Btn3",
+            //    "Inverter Luvas",
+            //    Assembly.GetExecutingAssembly().Location,
+            //    typeof(ReverseGlovesCommand).FullName
+            //);
+            //panel.AddItem(btn3Data);
             
             // === Botão 4 (novo) ===
             PushButtonData btn4Data = new PushButtonData(

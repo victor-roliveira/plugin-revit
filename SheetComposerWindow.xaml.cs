@@ -1,9 +1,10 @@
 ﻿using Autodesk.Revit.DB;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 
 namespace YourNamespace
 {
@@ -11,207 +12,154 @@ namespace YourNamespace
     {
         private Document _document;
         private Dictionary<Border, View> _viewElements = new Dictionary<Border, View>();
-        private System.Windows.Point _dragStartPoint;
-        private Border _draggedElement;
-        private View _draggedView;
+
+        // Classe para representar as vistas no ListBox
+        public class ViewItem
+        {
+            public string Name { get; set; }
+            public ElementId Id { get; set; }
+            public ViewType Type { get; set; }
+            public bool IsSelected { get; set; } // Adicionado para a seleção via CheckBox
+        }
 
         public SheetComposerWindow(Document doc)
         {
-            InitializeComponent(); // Agora esta linha funcionará
+            InitializeComponent();
             _document = doc;
             LoadAvailableViews();
-            LoadExistingSheets();
         }
 
         private void LoadAvailableViews()
         {
-            FilteredElementCollector collector = new FilteredElementCollector(_document);
-            collector.OfClass(typeof(View));
-
-            List<View> views = new List<View>();
-            foreach (View view in collector)
+            try
             {
-                if (!view.IsTemplate && view.CanBePrinted)
+                // Coletar todas as vistas do documento
+                FilteredElementCollector collector = new FilteredElementCollector(_document);
+                collector.OfClass(typeof(View));
+
+                // Filtrar e preparar as vistas para exibição
+                var views = new List<ViewItem>();
+                foreach (View view in collector)
                 {
-                    // Verifica se é uma vista que queremos incluir
-                    if (view.ViewType == ViewType.FloorPlan ||   // Plantas
-                        view.ViewType == ViewType.EngineeringPlan ||
-                        view.ViewType == ViewType.Section ||     // Cortes
-                        view.ViewType == ViewType.Elevation)    // Elevações
+                    if (!view.IsTemplate && view.CanBePrinted)
                     {
-                        views.Add(view);
+                        // Filtrar por tipos de vista específicos
+                        if (view.ViewType == ViewType.FloorPlan ||
+                            view.ViewType == ViewType.EngineeringPlan ||
+                            view.ViewType == ViewType.Section ||
+                            view.ViewType == ViewType.Elevation)
+                        {
+                            views.Add(new ViewItem
+                            {
+                                Name = view.Name,
+                                Id = view.Id,
+                                Type = view.ViewType,
+                                IsSelected = false // Inicialmente não selecionado
+                            });
+                        }
                     }
                 }
+
+                // Ordenar as vistas por nome
+                ViewsList.ItemsSource = views.OrderBy(v => v.Name);
             }
-
-            AvailableViewsList.ItemsSource = views;
-        }
-
-        private void LoadExistingSheets()
-        {
-            FilteredElementCollector collector = new FilteredElementCollector(_document);
-            collector.OfClass(typeof(ViewSheet));
-            SheetsComboBox.ItemsSource = collector.ToElements();
-        }
-
-        private void AvailableViews_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (AvailableViewsList.SelectedItem is View selectedView)
+            catch (Exception ex)
             {
-                _draggedView = selectedView;
-
-                // Inicia a operação de arrastar
-                DataObject dragData = new DataObject("REVIT_VIEW", selectedView);
-                DragDrop.DoDragDrop(AvailableViewsList, dragData, DragDropEffects.Copy);
-
-                _draggedView = null; // Limpa após a operação
+                MessageBox.Show($"Erro ao carregar vistas: {ex.Message}", "Erro",
+                              MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }
-
-        private void SheetCompositionArea_DragOver(object sender, DragEventArgs e)
-        {
-            if (e.Data.GetDataPresent("REVIT_VIEW"))
-            {
-                e.Effects = DragDropEffects.Copy;
-
-                // Adiciona feedback visual durante o arrasto
-                var border = sender as Border;
-                if (border != null)
-                {
-                    border.Background = Brushes.LightBlue;
-                }
-            }
-            else
-            {
-                e.Effects = DragDropEffects.None;
-            }
-            e.Handled = true;
-        }
-
-        private void SheetCompositionArea_DragLeave(object sender, DragEventArgs e)
-        {
-            // Restaura a cor original quando o cursor sai
-            var border = sender as Border;
-            if (border != null)
-            {
-                border.Background = Brushes.LightGray;
-            }
-        }
-
-        private void SheetCompositionArea_Drop(object sender, DragEventArgs e)
-        {
-            var border = sender as Border;
-            if (border != null)
-            {
-                border.Background = Brushes.LightGray; // Restaura a cor original
-            }
-
-            if (e.Data.GetData("REVIT_VIEW") is View view)
-            {
-                System.Windows.Point dropPosition = e.GetPosition(SheetCompositionArea);
-
-                var viewFrame = CreateViewFrame(view);
-                Canvas.SetLeft(viewFrame, dropPosition.X - viewFrame.Width / 2);
-                Canvas.SetTop(viewFrame, dropPosition.Y - viewFrame.Height / 2);
-
-                SheetCompositionArea.Children.Add(viewFrame);
-                _viewElements.Add(viewFrame, view);
-            }
-        }
-
-        private Border CreateViewFrame(View view)
-        {
-            var viewFrame = new Border
-            {
-                Style = (Style)FindResource("ViewFrameStyle"),
-                Width = 180,
-                Height = 120,
-                Child = new TextBlock
-                {
-                    Text = view.Name,
-                    TextWrapping = TextWrapping.Wrap,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(5),
-                    FontSize = 11,
-                    FontWeight = FontWeights.SemiBold
-                },
-                Tag = view.Id,
-                ToolTip = $"Tipo: {view.ViewType}\nEscala: 1:{view.Scale}"
-            };
-
-            // Configura eventos para mover
-            viewFrame.MouseLeftButtonDown += ViewFrame_MouseLeftButtonDown;
-            viewFrame.MouseMove += ViewFrame_MouseMove;
-            viewFrame.MouseLeftButtonUp += ViewFrame_MouseLeftButtonUp;
-
-            return viewFrame;
-        }
-
-        private void ViewFrame_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            _draggedElement = sender as Border;
-            if (_draggedElement != null)
-            {
-                _dragStartPoint = e.GetPosition(SheetCompositionArea);
-                _draggedElement.CaptureMouse();
-                e.Handled = true;
-            }
-        }
-
-        private void ViewFrame_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (_draggedElement != null && e.LeftButton == MouseButtonState.Pressed)
-            {
-                System.Windows.Point currentPosition = e.GetPosition(SheetCompositionArea);
-                double offsetX = currentPosition.X - _dragStartPoint.X;
-                double offsetY = currentPosition.Y - _dragStartPoint.Y;
-
-                Canvas.SetLeft(_draggedElement, Canvas.GetLeft(_draggedElement) + offsetX);
-                Canvas.SetTop(_draggedElement, Canvas.GetTop(_draggedElement) + offsetY);
-
-                _dragStartPoint = currentPosition;
-            }
-        }
-
-        private void ViewFrame_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (_draggedElement != null)
-            {
-                _draggedElement.ReleaseMouseCapture();
-                _draggedElement = null;
-            }
-        }
-
-        private void SheetCompositionArea_MouseUp(object sender, MouseButtonEventArgs e)
-        {
-            _draggedElement = null;
-            SheetCompositionArea.ReleaseMouseCapture();
-        }
-
-        private void CreateNewSheet_Click(object sender, RoutedEventArgs e)
-        {
-            SheetCompositionArea.Children.Clear();
-            _viewElements.Clear();
         }
 
         private void GenerateSheets_Click(object sender, RoutedEventArgs e)
         {
-            List<ViewPlacement> placements = new List<ViewPlacement>();
+            var selectedViews = ViewsList.ItemsSource
+                .Cast<ViewItem>()
+                .Where(v => v.IsSelected)
+                .ToList();
 
-            foreach (var kvp in _viewElements)
+            if (!selectedViews.Any())
             {
+                MessageBox.Show("Selecione pelo menos uma vista.", "Aviso",
+                              MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            ElementId titleBlockId = SheetCreator.GetTitleBlockId(_document);
+
+            if (SingleSheetRadio.IsChecked == true)
+            {
+                // Modo: Uma única prancha com múltiplas vistas (escala reduzida)
+                var placements = CalculateViewPlacementsForSingleSheet(selectedViews, titleBlockId);
+                SheetCreator.CreateSingleSheet(_document, placements, titleBlockId);
+            }
+            else
+            {
+                // Modo: Uma prancha por vista (escala original)
+                foreach (var viewItem in selectedViews)
+                {
+                    var placement = new ViewPlacement
+                    {
+                        ViewId = viewItem.Id,
+                        ShouldCenter = true // Usando a nova propriedade
+                    };
+                    SheetCreator.CreateSheetForView(_document, placement, titleBlockId);
+                }
+            }
+
+            this.DialogResult = true;
+            Close();
+        }
+
+        private List<ViewPlacement> CalculateViewPlacementsForSingleSheet(List<ViewItem> selectedViews, ElementId titleBlockId)
+        {
+            var placements = new List<ViewPlacement>();
+            const double sheetWidth = 841;  // Largura A1 em mm
+            const double sheetHeight = 594; // Altura A1 em mm
+
+            // Margens otimizadas para A1
+            const double topMargin = 15;    // Margem superior
+            const double bottomMargin = 25; // Margem inferior
+            const double sideMargin = 35;   // Margem lateral
+            const double rowSpacing = 40;   // Aumentado de 20 para 30mm (ajuste solicitado)
+
+            const int fixedScale = 200;     // Escala fixa 1:200
+            const int columns = 2;          // 2 colunas
+
+            // Cálculo do espaço útil
+            double usableHeight = sheetHeight - topMargin - bottomMargin;
+            double cellHeight = (usableHeight - rowSpacing) / 2;
+            double cellWidth = (sheetWidth - (2 * sideMargin)) / columns;
+
+            for (int i = 0; i < selectedViews.Count; i++)
+            {
+                int row = i / columns;
+                int col = i % columns;
+
+                // Cálculo da posição Y com novo espaçamento
+                double yPos = topMargin + (row * (cellHeight + rowSpacing)) + (cellHeight / 2);
+
+                // Verificação do limite inferior
+                if (yPos + (cellHeight / 2) > sheetHeight - bottomMargin)
+                {
+                    MessageBox.Show($"Limite máximo de {i} vistas na prancha A1", "Aviso",
+                                  MessageBoxButton.OK, MessageBoxImage.Information);
+                    break;
+                }
+
+                double xPos = sideMargin + (col * cellWidth) + (cellWidth / 2);
+
                 placements.Add(new ViewPlacement
                 {
-                    ViewId = kvp.Value.Id,
-                    X = Canvas.GetLeft(kvp.Key),
-                    Y = Canvas.GetTop(kvp.Key)
+                    ViewId = selectedViews[i].Id,
+                    X = xPos,
+                    Y = yPos,
+                    ScaleFactor = fixedScale,
+                    ViewWidth = cellWidth * 0.85,
+                    ViewHeight = cellHeight * 0.85
                 });
             }
 
-            SheetCreator.CreateSheets(_document, placements);
-            this.DialogResult = true;
-            Close();
+            return placements;
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -226,25 +174,16 @@ namespace YourNamespace
             Mouse.SetCursor(Cursors.Cross);
             e.Handled = true;
         }
-
-        private void SheetCompositionArea_DragEnter(object sender, DragEventArgs e)
-        {
-            if (e.Data.GetDataPresent("REVIT_VIEW"))
-            {
-                e.Effects = DragDropEffects.Copy;
-            }
-            else
-            {
-                e.Effects = DragDropEffects.None;
-            }
-            e.Handled = true;
-        }
     }
 
     public class ViewPlacement
     {
         public ElementId ViewId { get; set; }
-        public double X { get; set; }
-        public double Y { get; set; }
+        public double X { get; set; }        // Posição X em mm (centro)
+        public double Y { get; set; }        // Posição Y em mm (centro)
+        public int? ScaleFactor { get; set; } // Escala (ex: 200)
+        public double? ViewWidth { get; set; }  // Largura máxima em mm
+        public double? ViewHeight { get; set; } // Altura máxima em mm
+        public bool ShouldCenter { get; set; } // Nova propriedade para centralização
     }
 }

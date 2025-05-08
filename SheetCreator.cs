@@ -3,144 +3,220 @@ using Autodesk.Revit.UI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using YourNamespace;
 
 
 public static class SheetCreator
 {
-    public static void CreateSheets(Document doc, List<ViewPlacement> placements)
+    public static void CreateSingleSheet(Document doc, List<ViewPlacement> placements, ElementId titleBlockId)
     {
-        using (Transaction trans = new Transaction(doc, "Criar Pranchas com Vistas"))
+        using (Transaction trans = new Transaction(doc, "Criar Prancha A1"))
         {
+            trans.Start();
+
             try
             {
-                trans.Start();
-
-                // Criar nova prancha
-                ViewSheet sheet = ViewSheet.Create(doc, GetTitleBlockId(doc));
+                ViewSheet sheet = ViewSheet.Create(doc, titleBlockId);
                 sheet.SheetNumber = GenerateSheetNumber(doc);
-                sheet.Name = "Prancha Composta";
+                sheet.Name = "Prancha Composta A1";
 
-                bool viewsAdded = false;
+                var (sheetWidth, sheetHeight) = GetTitleBlockSize(doc, titleBlockId);
+                const double standardA1Height = 594;
 
                 foreach (var placement in placements)
                 {
                     View view = doc.GetElement(placement.ViewId) as View;
+                    if (view == null || !CanAddViewToSheet(view)) continue;
 
-                    if (view != null && CanAddViewToSheet(view))
+                    try
                     {
-                        try
+                        if (GetSheetContainingView(doc, view.Id) != null)
                         {
-                            // Verificar se a vista já está em outra prancha
-                            if (GetSheetContainingView(doc, view.Id) != null)
+                            view = DuplicateView(doc, view) ?? view;
+                        }
+
+                        if (placement.ScaleFactor.HasValue)
+                        {
+                            Parameter scaleParam = view.get_Parameter(BuiltInParameter.VIEW_SCALE_PULLDOWN_METRIC);
+                            if (scaleParam != null && scaleParam.StorageType == StorageType.Integer)
                             {
-                                // Duplicar a vista dentro da transação existente
-                                View duplicatedView = DuplicateView(doc, view);
-                                view = duplicatedView ?? view; // Usa a original se não conseguir duplicar
-                            }
-
-                            // Posicionamento da vista
-                            double x = (placement.X / 304.8) + 1.0;
-                            double y = (sheet.Outline.Max.V - (placement.Y / 304.8)) - 1.0;
-
-                            Viewport vp = Viewport.Create(doc, sheet.Id, view.Id, new XYZ(x, y, 0));
-
-                            if (vp != null)
-                            {
-                                viewsAdded = true;
-                                Debug.WriteLine($"Viewport criado para {view.Name}");
+                                scaleParam.Set(placement.ScaleFactor.Value);
                             }
                         }
-                        catch (Exception ex)
+
+                        if (view.CropBoxActive && placement.ViewWidth.HasValue && placement.ViewHeight.HasValue)
                         {
-                            Debug.WriteLine($"Erro ao adicionar vista: {ex.Message}");
+                            double maxWidth = placement.ViewWidth.Value / 304.8;
+                            double maxHeight = placement.ViewHeight.Value / 304.8;
+
+                            BoundingBoxXYZ crop = view.CropBox;
+                            double scaleFactor = Math.Min(
+                                maxWidth / (crop.Max.X - crop.Min.X),
+                                maxHeight / (crop.Max.Y - crop.Min.Y)
+                            ) * 0.90;
+
+                            XYZ newSize = (crop.Max - crop.Min) * scaleFactor;
+                            XYZ center = (crop.Max + crop.Min) / 2;
+
+                            view.CropBox = new BoundingBoxXYZ
+                            {
+                                Min = center - (newSize / 2),
+                                Max = center + (newSize / 2)
+                            };
                         }
+
+                        double xPos = placement.X / 304.8;
+                        double yCorrection = (standardA1Height - sheetHeight) / 2;
+                        double yPos = (sheetHeight - placement.Y + yCorrection) / 304.8;
+
+                        Viewport.Create(doc, sheet.Id, view.Id, new XYZ(xPos, yPos, 0));
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Erro ao posicionar vista {view.Name}: {ex.Message}");
                     }
                 }
 
-                if (viewsAdded)
-                {
-                    trans.Commit();
-                    Debug.WriteLine("Prancha criada com sucesso");
-                }
-                else
-                {
-                    trans.RollBack();
-                    Debug.WriteLine("Nenhuma vista foi adicionada");
-                }
+                trans.Commit();
+                TaskDialog.Show("Sucesso", "Prancha criada com layout preciso!");
             }
             catch (Exception ex)
             {
                 trans.RollBack();
-                Debug.WriteLine($"Erro crítico: {ex.Message}");
+                TaskDialog.Show("Erro", $"Falha na criação: {ex.Message}");
+            }
+        }
+    }
+
+    public static void CreateSheetForView(Document doc, ViewPlacement placement, ElementId titleBlockId)
+    {
+        using (Transaction trans = new Transaction(doc, "Criar Prancha Individual"))
+        {
+            trans.Start();
+
+            try
+            {
+                ViewSheet sheet = ViewSheet.Create(doc, titleBlockId);
+                sheet.SheetNumber = GenerateSheetNumber(doc);
+
+                View view = doc.GetElement(placement.ViewId) as View;
+                sheet.Name = view?.Name ?? "Prancha Sem Nome";
+
+                if (view != null && CanAddViewToSheet(view))
+                {
+                    try
+                    {
+                        // Duplicar vista se necessário
+                        if (GetSheetContainingView(doc, view.Id) != null)
+                        {
+                            view = DuplicateView(doc, view) ?? view;
+                        }
+
+                        // Centralizar vista se ShouldCenter for true
+                        if (placement.ShouldCenter)
+                        {
+                            var (sheetWidth, sheetHeight) = GetTitleBlockSize(doc, titleBlockId);
+                            double xPos = sheetWidth / 2 / 304.8;  // Converter mm para pés
+                            double yPos = sheetHeight / 2 / 304.8;
+
+                            Viewport.Create(doc, sheet.Id, view.Id, new XYZ(xPos, yPos, 0));
+                        }
+                        else
+                        {
+                            // Usar posições específicas se fornecidas
+                            double xPos = placement.X / 304.8;
+                            double yPos = (GetTitleBlockSize(doc, titleBlockId).height - placement.Y) / 304.8;
+                            Viewport.Create(doc, sheet.Id, view.Id, new XYZ(xPos, yPos, 0));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Erro ao adicionar vista: {ex.Message}");
+                    }
+                }
+
+                trans.Commit();
+            }
+            catch (Exception ex)
+            {
+                trans.RollBack();
                 throw;
             }
         }
     }
 
-    // para debug apenas
-    private static void LogPositionInfo(Document doc, ViewSheet sheet, XYZ location, View view)
-    {
-        Debug.WriteLine($"Informações de Posicionamento para {view.Name}:");
-        Debug.WriteLine($"Posição calculada: X={location.X}, Y={location.Y}");
-        Debug.WriteLine($"Escala da vista: 1:{view.Scale}");
-
-        BoundingBoxUV outline = sheet.Outline;
-        Debug.WriteLine($"Limites da prancha: Min(U={outline.Min.U}, V={outline.Min.V}) | Max(U={outline.Max.U}, V={outline.Max.V})");
-
-        // Verificação mais robusta para TitleBlock
-        var titleBlocks = new FilteredElementCollector(doc, sheet.Id)
-            .OfCategory(BuiltInCategory.OST_TitleBlocks)
-            .WhereElementIsNotElementType()
-            .ToElements();
-
-        if (titleBlocks.Any())
-        {
-            Element titleBlock = titleBlocks.First();
-            BoundingBoxXYZ bb = titleBlock.get_BoundingBox(sheet);
-            if (bb != null)
-            {
-                Debug.WriteLine($"Área útil (title block): Min(X={bb.Min.X}, Y={bb.Min.Y}) | Max(X={bb.Max.X}, Y={bb.Max.Y})");
-            }
-        }
-        else
-        {
-            Debug.WriteLine("Nenhum title block encontrado na prancha - usando outline completo");
-        }
-    }
-
-    private static bool IsWithinSheetBounds(ViewSheet sheet, XYZ location)
+    public static (double width, double height) GetViewSize(View view)
     {
         try
         {
-            // Obter os limites considerando escala
-            BoundingBoxUV outline = sheet.Outline;
-            double margin = 1.0; // Margem maior para escala 1:100
+            // Obter o bounding box da vista em pés
+            BoundingBoxXYZ bb = view.get_BoundingBox(null);
+            if (bb != null && bb.Min != null && bb.Max != null)
+            {
+                // Calcular tamanho em pés (já considera a escala)
+                double widthInFeet = bb.Max.X - bb.Min.X;
+                double heightInFeet = bb.Max.Y - bb.Min.Y;
 
-            return location.X > (outline.Min.U + margin) &&
-                   location.X < (outline.Max.U - margin) &&
-                   location.Y > (outline.Min.V + margin) &&
-                   location.Y < (outline.Max.V - margin);
+                // Converter para milímetros (1 pé = 304.8 mm)
+                double widthInMm = widthInFeet * 304.8;
+                double heightInMm = heightInFeet * 304.8;
+
+                // Valores máximos para evitar tamanhos absurdos
+                widthInMm = Math.Min(widthInMm, 5000); // Máximo 5 metros
+                heightInMm = Math.Min(heightInMm, 5000);
+
+                return (widthInMm, heightInMm);
+            }
         }
         catch
         {
-            return false;
+            // Se falhar, usar valores padrão
+        }
+
+        // Valores padrão baseados no tipo de vista (em mm)
+        switch (view.ViewType)
+        {
+            case ViewType.FloorPlan:
+                return (300, 200);
+            case ViewType.Section:
+                return (200, 300);
+            case ViewType.Elevation:
+                return (150, 250);
+            default:
+                return (250, 250);
         }
     }
 
-    private static bool CanAddViewToSheet(View view)
+    public static (double width, double height) GetTitleBlockSize(Document doc, ElementId titleBlockId)
+    {
+        try
+        {
+            Element titleBlock = doc.GetElement(titleBlockId);
+            if (titleBlock != null)
+            {
+                BoundingBoxXYZ bb = titleBlock.get_BoundingBox(null);
+                if (bb != null && bb.Min != null && bb.Max != null)
+                {
+                    return (
+                        (bb.Max.X - bb.Min.X) * 304.8,
+                        (bb.Max.Y - bb.Min.Y) * 304.8
+                    );
+                }
+            }
+        }
+        catch
+        {
+            // Fallback para A1 padrão se houver erro
+        }
+        return (841, 594); // Default A1
+    }
+
+    public static bool CanAddViewToSheet(View view)
     {
         if (view == null || view.IsTemplate || !view.CanBePrinted)
             return false;
 
-        // Garantir que a vista tenha escala adequada
-        if (view.Scale < 50 || view.Scale > 200) // Limites razoáveis para 1:100
-        {
-            TaskDialog.Show("Aviso", $"A vista '{view.Name}' tem escala 1:{view.Scale} - ajuste para entre 1:50 e 1:200");
-            return false;
-        }
-
+        // Permitir qualquer escala, pois vamos forçar a escala fixa
         return view.ViewType == ViewType.FloorPlan ||
                view.ViewType == ViewType.Section ||
                view.ViewType == ViewType.Elevation;
@@ -188,7 +264,7 @@ public static class SheetCreator
         }
     }
 
-    private static ElementId GetTitleBlockId(Document doc)
+    public static ElementId GetTitleBlockId(Document doc)
     {
         FilteredElementCollector collector = new FilteredElementCollector(doc);
         collector.OfCategory(BuiltInCategory.OST_TitleBlocks);

@@ -1,5 +1,8 @@
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\primeiro-plugin2.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\primeiro-plugin2.pdb
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\MaterialDesignColors.dll
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\MaterialDesignThemes.Wpf.dll
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\Microsoft.Xaml.Behaviors.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\RevitAPI.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\RevitAPIUI.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\RevitUIAPI.dll
@@ -58,6 +61,11 @@ C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\Autodesk.UI.Windows.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\Autodesk.UI.Themes.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\Xceed.Wpf.AvalonDock.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\CompositionServices.dll
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\MaterialDesignColors.pdb
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\MaterialDesignThemes.Wpf.pdb
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\MaterialDesignThemes.Wpf.xml
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\Microsoft.Xaml.Behaviors.pdb
+C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\Microsoft.Xaml.Behaviors.xml
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\RevitAPI.xml
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\RevitAPIUI.xml
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\RevitAddInUtility.xml
@@ -76,7 +84,9 @@ C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\ru-RU\AdWindows.resources
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\zh-CN\AdWindows.resources.dll
 C:\Users\victo\source\repos\primeiro-plugin2\bin\Debug\zh-TW\AdWindows.resources.dll
 C:\Users\victo\source\repos\primeiro-plugin2\obj\Debug\primeiro-plugin2.csproj.AssemblyReference.cache
+C:\Users\victo\source\repos\primeiro-plugin2\obj\Debug\App.baml
 C:\Users\victo\source\repos\primeiro-plugin2\obj\Debug\SheetComposerWindow.baml
+C:\Users\victo\source\repos\primeiro-plugin2\obj\Debug\App.g.cs
 C:\Users\victo\source\repos\primeiro-plugin2\obj\Debug\SheetComposerWindow.g.cs
 C:\Users\victo\source\repos\primeiro-plugin2\obj\Debug\primeiro-plugin2_MarkupCompile.cache
 C:\Users\victo\source\repos\primeiro-plugin2\obj\Debug\primeiro-plugin2.g.resources
